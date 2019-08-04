@@ -4,6 +4,10 @@ import babel from "rollup-plugin-babel"
 import serve from "rollup-plugin-serve"
 
 export default {
+	external: ["phaser"],
+	global: {
+		phaser: "Phaser"
+	},
 	input: "src/index.js",
 	output: {
 		file: "dist/bundle.js",

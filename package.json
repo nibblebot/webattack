@@ -1,12 +1,12 @@
 {
-	"name": "webdiscs",
+	"name": "webattack",
 	"version": "1.0.0",
 	"description": "",
 	"private": true,
 	"type": "module",
 	"scripts": {
 		"test": "echo \"Error: no test specified\" && exit 1",
-		"serve": "rollup -c rollup.config.dev.js"
+		"serve": "rollup --watch -c rollup.config.dev.js"
 	},
 	"keywords": [],
 	"author": "",
@@ -15,8 +15,6 @@
 		"@babel/core": "^7.5.4",
 		"@babel/plugin-proposal-class-properties": "^7.5.5",
 		"@babel/preset-env": "^7.5.4",
-		"@babylonjs/core": "^4.0.3",
-		"@babylonjs/materials": "^4.0.3",
 		"babel-eslint": "^10.0.2",
 		"eslint": "^6.0.1",
 		"rollup-plugin-babel": "^4.3.3",

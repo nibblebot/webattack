@@ -3,6 +3,7 @@ import head from "ramda/src/head"
 
 const options = {
 	tileSize: 45,
+	tileSpeed: -10,
 	frameBorder: 12,
 	frameWidth: 300,
 	numColumns: 6,
@@ -51,7 +52,8 @@ export default class GameScene extends Phaser.Scene {
 				// const rowOffset = this.gameMatrix.length - 1 - i
 				const tile = this.createTile(
 					this.originX + j * options.tileSize,
-					this.originY - i * options.tileSize
+					this.originY -
+						(options.startingRows - i - 1) * options.tileSize
 				)
 
 				// set random color to tile until no match is created
@@ -71,7 +73,7 @@ export default class GameScene extends Phaser.Scene {
 	createTile(x, y) {
 		const tile = this.tileGroup.create(x, y, "tiles")
 		this.tileGroup.add(tile)
-		tile.setVelocity(0, -10)
+		tile.setVelocity(0, options.tileSpeed)
 		return tile
 		// tile.setGravity(0, 60)
 	}

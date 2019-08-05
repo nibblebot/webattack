@@ -6,7 +6,9 @@
 	"extends": ["eslint:recommended"],
 	"globals": {
 		"Atomics": "readonly",
-		"SharedArrayBuffer": "readonly"
+		"SharedArrayBuffer": "readonly",
+
+		"Phaser": "readonly"
 	},
 	"parser": "babel-eslint",
 	"parserOptions": {

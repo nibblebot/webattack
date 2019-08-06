@@ -1,4 +1,5 @@
 import GameScene from "./scenes/GameScene"
+import PauseScene from "./scenes/PauseScene"
 
 const config = {
 	type: Phaser.AUTO,
@@ -10,7 +11,7 @@ const config = {
 			gravity: { y: 0 }
 		}
 	},
-	scene: [GameScene]
+	scene: [GameScene, PauseScene]
 }
 
 const game = new Phaser.Game(config)

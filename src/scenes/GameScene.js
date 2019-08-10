@@ -22,16 +22,41 @@ export default class GameScene extends Phaser.Scene {
 		super("game")
 	}
 	preload() {
+		this.load.image("debug-grid", "assets/debug-grid.png")
 		this.load.image("frame", "assets/frame.png")
 		this.load.spritesheet("tiles", "assets/sprites/tiles.png", {
 			frameWidth: options.tileSize,
 			frameHeight: options.tileSize
 		})
+		this.load.bitmapFont(
+			"atari-classic",
+			"assets/fonts/bitmap/atari-classic-black.png",
+			"assets/fonts/bitmap/atari-classic.xml"
+		)
 	}
 
 	create() {
+		this.frameWidth = 312
+		this.debugGridWidth = 270
+		this.debugGridHeight = 765
+		this.debugSprites = []
+		this.debugSpritePool = []
+
+		// Playing Area frame
+		this.add.image(
+			this.frameWidth / 2,
+			this.game.config.height / 2,
+			"frame"
+		)
+
+		this.add.image(
+			this.frameWidth + this.debugGridWidth / 2,
+			this.game.config.height / 2,
+			"debug-grid"
+		)
+
 		this.originX =
-			this.game.config.width / 2 +
+			this.frameWidth / 2 +
 			Math.floor((options.tileSize - options.frameWidth) / 2) +
 			7
 		this.originY =
@@ -39,25 +64,19 @@ export default class GameScene extends Phaser.Scene {
 			Math.floor(options.tileSize / 2) -
 			options.frameBorder
 
-		this.poolArray = []
-
-		const frameX = this.game.config.width / 2
-		const frameY = this.game.config.height / 2
-
-		// Playing Area frame
-		this.add.image(frameX, frameY, "frame")
+		this.tilePool = []
 
 		// Group of tiles with physics
 		this.tileGroup = this.physics.add.group()
 
 		// create sprites and store matrix of tile data
 		this.initializeGameMatrix()
+		this.renderDebug()
 		this.input.keyboard.on("keydown-P", this.pause, this)
 	}
 
 	initializeGameMatrix() {
 		this.gameMatrix = []
-		this.tilePool = []
 		for (let i = 0; i < options.startingRows; i++) {
 			this.gameMatrix[i] = []
 			for (let j = 0; j < options.numColumns; j++) {
@@ -86,13 +105,62 @@ export default class GameScene extends Phaser.Scene {
 		}
 	}
 
+	renderDebug() {
+		// recycle any existing sprites
+		let recycleSprite
+		while ((recycleSprite = this.debugSprites.pop())) {
+			this.debugSpritePool.push(
+				recycleSprite
+					.setText("")
+					.setX(0)
+					.setY(0)
+					.setVisible(false)
+			)
+		}
+
+		// render debug grid
+		// for (let row = 0; row < this.gameMatrix.length; row++) {
+		for (let row = this.gameMatrix.length - 1; row >= 0; row--) {
+			for (let col = 0; col < options.numColumns; col++) {
+				let sprite
+				const x = this.frameWidth + 6 + options.tileSize * col
+				const y =
+					this.game.config.height -
+					56 -
+					// options.tileSize * row
+					options.tileSize * (this.gameMatrix.length - 1 - row)
+				let text = this.gameMatrix[row][col].tileColor
+				if (text === -1) {
+					text = "-"
+				}
+
+				if (this.debugSpritePool.length) {
+					sprite = this.debugSpritePool.pop()
+					sprite
+						.setX(x)
+						.setY(y)
+						.setText(text)
+						.setVisible(true)
+				} else {
+					sprite = this.add.bitmapText(
+						x,
+						y,
+						"atari-classic",
+						text,
+						32
+					)
+				}
+				this.debugSprites.push(sprite)
+			}
+		}
+	}
+
+	// TODO: use tilePool to recycle sprites
 	createTile(x, y) {
 		const tile = this.tileGroup.create(x, y, "tiles")
-		this.tileGroup.add(tile)
 		if (!this.frozen) {
 			tile.setVelocity(0, options.tileDefaultSpeed)
 		}
-		// tile.setGravity(0, 60)
 		return tile
 	}
 
@@ -147,14 +215,13 @@ export default class GameScene extends Phaser.Scene {
 		const lastTileY = last(this.tileGroup.getChildren()).y
 		const isLastRowAboveFrame = this.originY - lastTileY > 0
 		if (isLastRowAboveFrame) {
+			this.renderDebug()
 			this.activateLastRow()
 			if (this.boardHasMatches()) {
 				this.resetMatches()
-				const horizMatch = this.markMatches(HORIZONTAL)
-				const vertMatch = this.markMatches(VERTICAL)
-				if (horizMatch || vertMatch) {
-					this.freezeTiles()
-				}
+				this.markMatches(HORIZONTAL)
+				this.markMatches(VERTICAL)
+				this.freezeTiles()
 				this.destroyMarkedTiles()
 			}
 			this.addInactiveGameRow()
@@ -165,6 +232,7 @@ export default class GameScene extends Phaser.Scene {
 		last(this.gameMatrix).forEach(item => {
 			item.isActive = true
 		})
+		// TODO: refactor to only iterate last row
 		this.tileGroup.getChildren().forEach(tile => {
 			if (tile.isTinted) {
 				tile.clearTint()
@@ -200,29 +268,28 @@ export default class GameScene extends Phaser.Scene {
 
 		for (let i = 0; i < iMax; i++) {
 			let colorStreak = 1
-			let colorToWatch
+			let colorToWatch = 0
 			let startStreak = 0
-			let currentColor = -1
+			let currentColor = -2
 			for (let j = 0; j < jMax; j++) {
 				// watch for current tile color
-				colorToWatch =
-					direction === HORIZONTAL
-						? this.tileAt(i, j).tileColor
-						: this.tileAt(j, i).tileColor
+				const x = direction === HORIZONTAL ? j : i
+				const y = direction === HORIZONTAL ? i : j
+				colorToWatch = this.tileAt(y, x).tileColor
 
 				// extend streak if match
 				const colorMatch = colorToWatch === currentColor
 				if (colorMatch) {
 					colorStreak++
-					// console.log(
-					// 	direction === HORIZONTAL ? "HORIZONTAL" : "VERTICAL"
-					// )
-					// console.log("streak: ", colorStreak)
 				}
 				// if no match or on the edge
 				if (!colorMatch || j === jMax - 1) {
 					// ... and we already have a match
 					if (colorStreak >= 3) {
+						console.log(
+							direction === HORIZONTAL ? "HORIZONTAL" : "VERTICAL"
+						)
+						console.log("streak: ", colorStreak)
 						match = true
 						// console.log(colorStreak + " combo!")
 						for (let k = 0; k < colorStreak; k++) {
@@ -245,7 +312,6 @@ export default class GameScene extends Phaser.Scene {
 	}
 
 	freezeTiles() {
-		console.log("freezing tiles")
 		this.frozen = true
 		for (let row = 0; row < this.gameMatrix.length; row++) {
 			for (let col = 0; col < options.numColumns; col++) {
@@ -255,7 +321,6 @@ export default class GameScene extends Phaser.Scene {
 	}
 
 	unfreezeTiles() {
-		console.log("unfreezing tiles")
 		this.frozen = false
 		for (let row = 0; row < this.gameMatrix.length; row++) {
 			for (let col = 0; col < options.numColumns; col++) {
@@ -295,12 +360,9 @@ export default class GameScene extends Phaser.Scene {
 						onComplete: function() {
 							destroyed--
 							this.gameMatrix[i][j].tileSprite.visible = false
-							this.poolArray.push(
-								this.gameMatrix[i][j].tileSprite
-							)
 							this.gameMatrix[i][j].isEmpty = true
+							this.tilePool.push(this.gameMatrix[i][j].tileSprite)
 							if (destroyed == 0) {
-								console.log("all matched tiles destroyed")
 								this.makeTilesFall()
 							}
 						}
@@ -313,28 +375,25 @@ export default class GameScene extends Phaser.Scene {
 	makeTilesFall() {
 		let currentTile
 		let falling = 0
+		let hasFalling = false
 		for (let i = this.gameMatrix.length - 2; i >= 0; i--) {
 			for (let j = 0; j < options.numColumns; j++) {
 				currentTile = this.gameMatrix[i][j]
 				if (!currentTile.isEmpty) {
 					let fallTiles = this.holesBelow(i, j)
 					if (fallTiles > 0) {
-						console.log("fall tiles: ", fallTiles)
+						hasFalling = true
 						falling++
-						console.log("falling:", falling)
 						this.tweens.add({
 							targets: currentTile.tileSprite,
 							y: this.gameMatrix[i + fallTiles][j].tileSprite.y,
-
-							// currentTile.tileSprite.y +
-							// fallTiles * options.tileSize,
 							duration: options.tileFallSpeed * fallTiles,
 							callbackScope: this,
 							onComplete: function() {
 								falling--
-								console.log("falling:", falling)
 								if (falling === 0) {
 									this.unfreezeTiles()
+									this.renderDebug()
 								}
 							}
 						})
@@ -344,9 +403,14 @@ export default class GameScene extends Phaser.Scene {
 							isEmpty: false
 						}
 						currentTile.isEmpty = true
+						currentTile.tileColor = -1
 					}
 				}
 			}
+		}
+		if (!hasFalling) {
+			this.unfreezeTiles()
+			this.renderDebug()
 		}
 	}
 
@@ -365,16 +429,17 @@ export default class GameScene extends Phaser.Scene {
 		this.gameMatrix.push(row)
 		for (let j = 0; j < options.numColumns; j++) {
 			// create tile
-			// const rowOffset = this.gameMatrix.length - 1 - i
 			const tile = this.createTile(
 				this.originX + j * options.tileSize,
 				this.originY + options.tileSize - 1
 			)
 
-			// set random color to tile until no match is created
+			// set random color to tile
 			const randomTile = Math.floor(Math.random() * options.numTiles)
 			tile.setFrame(randomTile)
+			// set inactive tint
 			tile.setTint(0x888888)
+
 			row[j] = {
 				tileSprite: tile,
 				tileColor: randomTile,

@@ -3,15 +3,19 @@ import head from "ramda/src/head"
 
 const options = {
 	tileSize: 45,
-	tileSpeed: -10,
+	tileDefaultSpeed: -10,
+	tileFallSpeed: 60,
 	frameBorder: 12,
 	frameWidth: 300,
 	numColumns: 6,
 	numRows: 18,
 	numTiles: 3,
 	startingRows: 5,
-	destroySpeed: 200
+	destroySpeed: 4000
 }
+
+const HORIZONTAL = 1
+const VERTICAL = 2
 
 export default class GameScene extends Phaser.Scene {
 	constructor() {
@@ -51,16 +55,6 @@ export default class GameScene extends Phaser.Scene {
 		this.input.keyboard.on("keydown-P", this.pause, this)
 	}
 
-	update() {
-		const lastTileY = last(this.tileGroup.getChildren()).y
-		const isLastRowAboveFrame = this.originY - lastTileY > 0
-		if (isLastRowAboveFrame) {
-			this.activateLastRow()
-			// this.checkRowMatches(this.gameMatrix.length - 1)
-			this.addInactiveGameRow()
-		}
-	}
-
 	initializeGameMatrix() {
 		this.gameMatrix = []
 		this.tilePool = []
@@ -77,12 +71,12 @@ export default class GameScene extends Phaser.Scene {
 
 				// set random color to tile until no match is created
 				do {
-					const randomTile = Math.floor(
+					const randomColor = Math.floor(
 						Math.random() * options.numTiles
 					)
-					tile.setFrame(randomTile)
+					tile.setFrame(randomColor)
 					this.gameMatrix[i][j] = {
-						tileColor: randomTile,
+						tileColor: randomColor,
 						tileSprite: tile,
 						isActive: true,
 						isEmpty: false
@@ -95,7 +89,9 @@ export default class GameScene extends Phaser.Scene {
 	createTile(x, y) {
 		const tile = this.tileGroup.create(x, y, "tiles")
 		this.tileGroup.add(tile)
-		tile.setVelocity(0, options.tileSpeed)
+		if (!this.frozen) {
+			tile.setVelocity(0, options.tileDefaultSpeed)
+		}
 		// tile.setGravity(0, 60)
 		return tile
 	}
@@ -147,6 +143,24 @@ export default class GameScene extends Phaser.Scene {
 		this.scene.run("pause")
 	}
 
+	update() {
+		const lastTileY = last(this.tileGroup.getChildren()).y
+		const isLastRowAboveFrame = this.originY - lastTileY > 0
+		if (isLastRowAboveFrame) {
+			this.activateLastRow()
+			if (this.boardHasMatches()) {
+				this.resetMatches()
+				const horizMatch = this.markMatches(HORIZONTAL)
+				const vertMatch = this.markMatches(VERTICAL)
+				if (horizMatch || vertMatch) {
+					this.freezeTiles()
+				}
+				this.destroyMarkedTiles()
+			}
+			this.addInactiveGameRow()
+		}
+	}
+
 	activateLastRow() {
 		last(this.gameMatrix).forEach(item => {
 			item.isActive = true
@@ -158,105 +172,120 @@ export default class GameScene extends Phaser.Scene {
 		})
 	}
 
-	checkRowMatches(row) {
-		let isHorizMatch = false
-		let markedArray = []
-		for (let col = 0; col < options.numColumns; col++) {
-			if (this.isHorizontalMatch(row, col)) {
-				isHorizMatch = true
-				markedArray.push([row, col], [row, col - 1], [row, col - 2])
-				if (
-					this.tileAt(row, col).tileColor ==
-					this.tileAt(row, col - 3).tileColor
-				) {
-					markedArray.push([row, col - 3])
-					if (
-						this.tileAt(row, col).tileColor ==
-						this.tileAt(row, col - 4).tileColor
-					) {
-						markedArray.push([row, col - 4])
-						if (
-							this.tileAt(row, col).tileColor ==
-							this.tileAt(row, col - 5).tileColor
-						) {
-							markedArray.push([row, col - 5])
-						}
-					}
+	boardHasMatches() {
+		for (let row = 0; row < this.gameMatrix.length; row++) {
+			for (let col = 0; col < options.numColumns; col++) {
+				if (this.isMatch(row, col)) {
+					return true
 				}
-				// this.markHorizonalMatch(row, column)
 			}
-			// if (this.isVerticalMatch(row, column)) {
-			// 	this.markVerticalMatch(row, column)
-			// }
 		}
-		if (isHorizMatch) {
-			this.resetMarkedMatrix()
+		return false
+	}
 
-			let markedTile
-			do {
-				markedTile = markedArray.pop()
-				if (markedTile) {
-					const [row, col] = markedTile
-					this.markedMatrix[row][col] = 1
+	markMatches(direction) {
+		let match = false
+		let iMax
+		let jMax
+		// scan for horizontal with left->right inner loop
+		if (direction === HORIZONTAL) {
+			iMax = this.gameMatrix.length
+			jMax = options.numColumns
+		}
+		// scan for vertical with top->bottom inner loop
+		else {
+			iMax = options.numColumns
+			jMax = this.gameMatrix.length
+		}
 
-					// for horiz match, check row above for connected colors
-					const tile = this.gameMatrix[row][col]
-					const matchColor = tile.tileColor
-					if (this.tileAt(row - 1, col).tileColor === matchColor) {
-						if (!this.markedMatrix[row - 1][col]) {
-							markedArray.push([row - 1, col])
-						}
-					}
-					if (this.tileAt(row + 1, col).tileColor === matchColor) {
-						if (!this.markedMatrix[row + 1][col]) {
-							markedArray.push([row + 1, col])
-						}
-					}
-					if (this.tileAt(row, col - 1).tileColor === matchColor) {
-						if (!this.markedMatrix[row][col - 1]) {
-							markedArray.push([row, col - 1])
-						}
-					}
-					if (this.tileAt(row, col + 1).tileColor === matchColor) {
-						if (!this.markedMatrix[row][col + 1]) {
-							markedArray.push([row, col + 1])
-						}
-					}
+		for (let i = 0; i < iMax; i++) {
+			let colorStreak = 1
+			let colorToWatch
+			let startStreak = 0
+			let currentColor = -1
+			for (let j = 0; j < jMax; j++) {
+				// watch for current tile color
+				colorToWatch =
+					direction === HORIZONTAL
+						? this.tileAt(i, j).tileColor
+						: this.tileAt(j, i).tileColor
+
+				// extend streak if match
+				const colorMatch = colorToWatch === currentColor
+				if (colorMatch) {
+					colorStreak++
+					// console.log(
+					// 	direction === HORIZONTAL ? "HORIZONTAL" : "VERTICAL"
+					// )
+					// console.log("streak: ", colorStreak)
 				}
-			} while (markedTile)
-			this.destroyMarkedTiles()
+				// if no match or on the edge
+				if (!colorMatch || j === jMax - 1) {
+					// ... and we already have a match
+					if (colorStreak >= 3) {
+						match = true
+						// console.log(colorStreak + " combo!")
+						for (let k = 0; k < colorStreak; k++) {
+							const row =
+								direction === HORIZONTAL ? i : startStreak + k
+							const col =
+								direction === HORIZONTAL ? startStreak + k : i
+
+							// console.log("matching: ", row, col)
+							this.matchMatrix[row][col]++
+						}
+					}
+					startStreak = j
+					colorStreak = 1
+					currentColor = colorToWatch
+				}
+			}
+		}
+		return match
+	}
+
+	freezeTiles() {
+		console.log("freezing tiles")
+		this.frozen = true
+		for (let row = 0; row < this.gameMatrix.length; row++) {
+			for (let col = 0; col < options.numColumns; col++) {
+				this.gameMatrix[row][col].tileSprite.setVelocity(0, 0)
+			}
 		}
 	}
-	resetMarkedMatrix() {
-		this.markedMatrix = []
+
+	unfreezeTiles() {
+		console.log("unfreezing tiles")
+		this.frozen = false
+		for (let row = 0; row < this.gameMatrix.length; row++) {
+			for (let col = 0; col < options.numColumns; col++) {
+				this.gameMatrix[row][col].tileSprite.setVelocity(
+					0,
+					options.tileDefaultSpeed
+				)
+			}
+		}
+	}
+
+	checkMatchingNeighbors() {}
+
+	resetMatches() {
+		this.matchMatrix = []
 		const rows = this.gameMatrix.length
 		const cols = this.gameMatrix[0].length
 		for (let i = 0; i < rows; i++) {
-			this.markedMatrix[i] = []
+			this.matchMatrix[i] = []
 			for (let j = 0; j < cols; j++) {
-				this.markedMatrix[i][j] = 0
+				this.matchMatrix[i][j] = 0
 			}
-		}
-	}
-	debugMarkedTiles() {
-		console.log("marked tiles")
-		let row
-		for (let i = 0; i < this.markedMatrix.length; i++) {
-			row = ""
-			for (let j = 0; j < options.numColumns; j++) {
-				row += this.markedMatrix[i][j]
-			}
-			console.log(row)
 		}
 	}
 
 	destroyMarkedTiles() {
-		console.log("match")
-		// this.debugMarkedTiles()
 		let destroyed = 0
 		for (let i = 0; i < this.gameMatrix.length; i++) {
 			for (let j = 0; j < options.numColumns; j++) {
-				if (this.markedMatrix[i][j] > 0) {
+				if (this.matchMatrix[i][j] > 0) {
 					destroyed++
 					this.tweens.add({
 						targets: this.gameMatrix[i][j].tileSprite,
@@ -269,49 +298,67 @@ export default class GameScene extends Phaser.Scene {
 							this.poolArray.push(
 								this.gameMatrix[i][j].tileSprite
 							)
+							this.gameMatrix[i][j].isEmpty = true
 							if (destroyed == 0) {
-								// this.makeTilesFall()
+								console.log("all matched tiles destroyed")
+								this.makeTilesFall()
 							}
 						}
 					})
-					this.gameMatrix[i][j].isEmpty = true
 				}
 			}
 		}
 	}
-	// makeGemsFall() {
-	// 	for (let i = gameOptions.fieldSize - 2; i >= 0; i--) {
-	// 		for (let j = 0; j < gameOptions.fieldSize; j++) {
-	// 			if (!this.gameArray[i][j].isEmpty) {
-	// 				let fallTiles = this.holesBelow(i, j)
-	// 				if (fallTiles > 0) {
-	// 					this.tweens.add({
-	// 						targets: this.gameArray[i][j].gemSprite,
-	// 						y:
-	// 							this.gameArray[i][j].gemSprite.y +
-	// 							fallTiles * gameOptions.gemSize,
-	// 						duration: gameOptions.fallSpeed * fallTiles
-	// 					})
-	// 					this.gameArray[i + fallTiles][j] = {
-	// 						gemSprite: this.gameArray[i][j].gemSprite,
-	// 						gemColor: this.gameArray[i][j].gemColor,
-	// 						isEmpty: false
-	// 					}
-	// 					this.gameArray[i][j].isEmpty = true
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// }
-	// holesBelow(row, col) {
-	// 	let result = 0
-	// 	for (let i = row + 1; i < gameOptions.fieldSize; i++) {
-	// 		if (this.gameArray[i][col].isEmpty) {
-	// 			result++
-	// 		}
-	// 	}
-	// 	return result
-	// }
+
+	makeTilesFall() {
+		let currentTile
+		let falling = 0
+		for (let i = this.gameMatrix.length - 2; i >= 0; i--) {
+			for (let j = 0; j < options.numColumns; j++) {
+				currentTile = this.gameMatrix[i][j]
+				if (!currentTile.isEmpty) {
+					let fallTiles = this.holesBelow(i, j)
+					if (fallTiles > 0) {
+						console.log("fall tiles: ", fallTiles)
+						falling++
+						console.log("falling:", falling)
+						this.tweens.add({
+							targets: currentTile.tileSprite,
+							y: this.gameMatrix[i + fallTiles][j].tileSprite.y,
+
+							// currentTile.tileSprite.y +
+							// fallTiles * options.tileSize,
+							duration: options.tileFallSpeed * fallTiles,
+							callbackScope: this,
+							onComplete: function() {
+								falling--
+								console.log("falling:", falling)
+								if (falling === 0) {
+									this.unfreezeTiles()
+								}
+							}
+						})
+						this.gameMatrix[i + fallTiles][j] = {
+							tileSprite: currentTile.tileSprite,
+							tileColor: currentTile.tileColor,
+							isEmpty: false
+						}
+						currentTile.isEmpty = true
+					}
+				}
+			}
+		}
+	}
+
+	holesBelow(row, col) {
+		let result = 0
+		for (let i = row + 1; i < this.gameMatrix.length; i++) {
+			if (this.gameMatrix[i][col].isEmpty) {
+				result++
+			}
+		}
+		return result
+	}
 
 	addInactiveGameRow() {
 		const row = []

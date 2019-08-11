@@ -3,6 +3,7 @@ import head from "ramda/src/head"
 import TileMatcher from "../lib/TileMatcher"
 
 const options = {
+	debug: false,
 	tileSize: 45,
 	tileDefaultSpeed: -10,
 	tileFallSpeed: 60,
@@ -47,11 +48,13 @@ export default class GameScene extends Phaser.Scene {
 			"frame"
 		)
 
-		this.add.image(
-			this.frameWidth + this.debugGridWidth / 2,
-			this.game.config.height / 2,
-			"debug-grid"
-		)
+		if (options.debug) {
+			this.add.image(
+				this.frameWidth + this.debugGridWidth / 2,
+				this.game.config.height / 2,
+				"debug-grid"
+			)
+		}
 
 		this.originX =
 			this.frameWidth / 2 +
@@ -71,7 +74,9 @@ export default class GameScene extends Phaser.Scene {
 
 		// create sprites and store matrix of tile data
 		this.initializeGameMatrix()
-		this.renderDebug()
+		if (options.debug) {
+			this.renderDebug()
+		}
 		this.input.keyboard.on("keydown-P", this.pause, this)
 	}
 
@@ -173,7 +178,9 @@ export default class GameScene extends Phaser.Scene {
 		const lastTileY = lastRow[0].tileSprite.y
 		const isLastRowAboveFrame = this.originY - lastTileY > 0
 		if (isLastRowAboveFrame) {
-			this.renderDebug()
+			if (options.debug) {
+				this.renderDebug()
+			}
 			this.activateLastRow()
 			if (this.matcher.checkMatches()) {
 				this.freezeTiles()
@@ -181,7 +188,7 @@ export default class GameScene extends Phaser.Scene {
 					.then(() => this.makeTilesFall())
 					.then(() => {
 						this.unfreezeTiles()
-						this.renderDebug()
+						// this.renderDebug()
 					})
 			}
 			this.addInactiveGameRow()

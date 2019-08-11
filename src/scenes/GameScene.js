@@ -178,11 +178,12 @@ export default class GameScene extends Phaser.Scene {
 			if (this.matcher.checkMatches()) {
 				this.freezeTiles()
 				this.destroyMarkedTiles()
+					.then(() => this.makeTilesFall())
+					.then(() => {
+						this.unfreezeTiles()
+						this.renderDebug()
+					})
 			}
-			// if (this.boardHasMatches()) {
-			// 	this.resetMatches()
-			// 	this.markHorizontalMatches()
-			// }
 			this.addInactiveGameRow()
 		}
 	}
@@ -217,74 +218,76 @@ export default class GameScene extends Phaser.Scene {
 	}
 
 	destroyMarkedTiles() {
-		let destroyed = 0
-		for (let i = 0; i < this.matcher.numRows(); i++) {
-			for (let j = 0; j < this.matcher.numColumns(); j++) {
-				if (this.matcher.hasMatch(i, j) > 0) {
-					destroyed++
-					this.tweens.add({
-						targets: this.matcher.tileAt(i, j).tileSprite,
-						alpha: 0.5,
-						duration: options.destroySpeed,
-						callbackScope: this,
-						onComplete: function() {
-							destroyed--
-
-							const tile = this.matcher.tileAt(i, j)
-							tile.tileSprite.visible = false
-							tile.isEmpty = true
-							this.tilePool.push(tile.tileSprite)
-							if (destroyed == 0) {
-								this.makeTilesFall()
-							}
-						}
-					})
-				}
-			}
-		}
-	}
-
-	makeTilesFall() {
-		let currentTile
-		let falling = 0
-		let hasFalling = false
-		for (let i = this.matcher.numRows() - 2; i >= 0; i--) {
-			for (let j = 0; j < this.matcher.numColumns(); j++) {
-				currentTile = this.matcher.tileAt(i, j)
-				if (!currentTile.isEmpty) {
-					let fallTiles = this.holesBelow(i, j)
-					if (fallTiles > 0) {
-						hasFalling = true
-						falling++
+		return new Promise(resolve => {
+			let destroyed = 0
+			for (let i = 0; i < this.matcher.numRows(); i++) {
+				for (let j = 0; j < this.matcher.numColumns(); j++) {
+					if (this.matcher.hasMatch(i, j) > 0) {
+						destroyed++
 						this.tweens.add({
-							targets: currentTile.tileSprite,
-							y: this.matcher.tileAt(i + fallTiles, j).tileSprite
-								.y,
-							duration: options.tileFallSpeed * fallTiles,
+							targets: this.matcher.tileAt(i, j).tileSprite,
+							alpha: 0.5,
+							duration: options.destroySpeed,
 							callbackScope: this,
 							onComplete: function() {
-								falling--
-								if (falling === 0) {
-									this.unfreezeTiles()
-									this.renderDebug()
+								destroyed--
+
+								const tile = this.matcher.tileAt(i, j)
+								tile.tileSprite.visible = false
+								tile.isEmpty = true
+								this.tilePool.push(tile.tileSprite)
+								if (destroyed == 0) {
+									resolve()
 								}
 							}
 						})
-						this.matcher.setTile(i + fallTiles, j, {
-							tileSprite: currentTile.tileSprite,
-							tileColor: currentTile.tileColor,
-							isEmpty: false
-						})
-						currentTile.isEmpty = true
-						currentTile.tileColor = -1
 					}
 				}
 			}
-		}
-		if (!hasFalling) {
-			this.unfreezeTiles()
-			this.renderDebug()
-		}
+		})
+	}
+
+	makeTilesFall() {
+		return new Promise(resolve => {
+			let currentTile
+			let falling = 0
+			let hasFalling = false
+			for (let i = this.matcher.numRows() - 2; i >= 0; i--) {
+				for (let j = 0; j < this.matcher.numColumns(); j++) {
+					currentTile = this.matcher.tileAt(i, j)
+					if (!currentTile.isEmpty) {
+						let fallTiles = this.holesBelow(i, j)
+						if (fallTiles > 0) {
+							hasFalling = true
+							falling++
+							this.tweens.add({
+								targets: currentTile.tileSprite,
+								y: this.matcher.tileAt(i + fallTiles, j)
+									.tileSprite.y,
+								duration: options.tileFallSpeed * fallTiles,
+								callbackScope: this,
+								onComplete: function() {
+									falling--
+									if (falling === 0) {
+										resolve()
+									}
+								}
+							})
+							this.matcher.setTile(i + fallTiles, j, {
+								tileSprite: currentTile.tileSprite,
+								tileColor: currentTile.tileColor,
+								isEmpty: false
+							})
+							currentTile.isEmpty = true
+							currentTile.tileColor = -1
+						}
+					}
+				}
+			}
+			if (!hasFalling) {
+				resolve()
+			}
+		})
 	}
 
 	holesBelow(row, col) {

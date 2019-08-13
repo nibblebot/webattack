@@ -4,7 +4,7 @@ import TileMatcher from "../lib/TileMatcher"
 
 const options = {
 	debug: false,
-	tileSize: 45,
+	tileSize: 48,
 	tileDefaultSpeed: -10,
 	tileFallSpeed: 60,
 	frameBorder: 12,
@@ -21,8 +21,9 @@ export default class GameScene extends Phaser.Scene {
 		super("game")
 	}
 	preload() {
-		this.load.image("debug-grid", "assets/debug-grid.png")
-		this.load.image("frame", "assets/frame.png")
+		this.load.image("cursor", "assets/images/cursor.png")
+		this.load.image("debug-grid", "assets/images/debug-grid.png")
+		this.load.image("frame", "assets/images/frame.png")
 		this.load.spritesheet("tiles", "assets/sprites/tiles.png", {
 			frameWidth: options.tileSize,
 			frameHeight: options.tileSize
@@ -59,11 +60,16 @@ export default class GameScene extends Phaser.Scene {
 		this.originX =
 			this.frameWidth / 2 +
 			Math.floor((options.tileSize - options.frameWidth) / 2) +
-			7
+			6
 		this.originY =
 			this.game.config.height -
 			Math.floor(options.tileSize / 2) -
 			options.frameBorder
+
+		this.cursor = this.physics.add
+			.image(this.originX + options.tileSize / 2, this.originY, "cursor")
+			.setVelocity(0, options.tileDefaultSpeed)
+			.setDepth(1)
 
 		this.tilePool = []
 
@@ -78,6 +84,7 @@ export default class GameScene extends Phaser.Scene {
 			this.renderDebug()
 		}
 		this.input.keyboard.on("keydown-P", this.pause, this)
+		this.cursorKeys = this.input.keyboard.createCursorKeys()
 	}
 
 	initializeGameMatrix() {
@@ -174,6 +181,10 @@ export default class GameScene extends Phaser.Scene {
 	}
 
 	update() {
+		this.handleBottomRow()
+		this.handleCursor()
+	}
+	handleBottomRow() {
 		const lastRow = this.matcher.getLastRow()
 		const lastTileY = lastRow[0].tileSprite.y
 		const isLastRowAboveFrame = this.originY - lastTileY > 0
@@ -194,6 +205,37 @@ export default class GameScene extends Phaser.Scene {
 			this.addInactiveGameRow()
 		}
 	}
+	handleCursor() {
+		if (this.input.keyboard.checkDown(this.cursorKeys.up, 150)) {
+			this.moveCursorUp()
+		} else if (this.input.keyboard.checkDown(this.cursorKeys.down, 150)) {
+			this.moveCursorDown()
+		} else if (this.input.keyboard.checkDown(this.cursorKeys.left, 150)) {
+			this.moveCursorLeft()
+		} else if (this.input.keyboard.checkDown(this.cursorKeys.right, 150)) {
+			this.moveCursorRight()
+		}
+	}
+
+	moveCursorUp() {
+		if (this.cursor.y - this.cursor.height > options.frameBorder) {
+			this.cursor.y -= options.tileSize
+		}
+	}
+	moveCursorDown() {
+		if (
+			this.cursor.y + this.cursor.height + 3 <
+			this.game.config.height - options.frameBorder
+		) {
+			this.cursor.y += options.tileSize
+		}
+	}
+	moveCursorLeft() {
+		this.cursor.x -= options.tileSize
+	}
+	moveCursorRight() {
+		this.cursor.x += options.tileSize
+	}
 
 	activateLastRow() {
 		this.matcher.getLastRow().forEach(item => {
@@ -206,6 +248,7 @@ export default class GameScene extends Phaser.Scene {
 
 	freezeTiles() {
 		this.frozen = true
+		this.cursor.setVelocity(0, 0)
 		for (let row = 0; row < this.matcher.numRows(); row++) {
 			for (let col = 0; col < this.matcher.numColumns(); col++) {
 				this.matcher.tileAt(row, col).tileSprite.setVelocity(0, 0)
@@ -215,6 +258,7 @@ export default class GameScene extends Phaser.Scene {
 
 	unfreezeTiles() {
 		this.frozen = false
+		this.cursor.setVelocity(0, options.tileDefaultSpeed)
 		for (let row = 0; row < this.matcher.numRows(); row++) {
 			for (let col = 0; col < this.matcher.numColumns(); col++) {
 				this.matcher

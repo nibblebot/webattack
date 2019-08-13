@@ -37,11 +37,6 @@ export default class TileMatcher {
 	}
 
 	isHorizontalMatch(row, col) {
-		// return (
-		// 	this.grid[row][col].tileColor ==
-		// 		this.grid[row][col - 1].tileColor &&
-		// 	this.grid[row][col].tileColor == this.grid[row][col - 2].tileColor
-		// )
 		return (
 			this.tileAt(row, col).tileColor ==
 				this.tileAt(row, col - 1).tileColor &&
@@ -69,6 +64,20 @@ export default class TileMatcher {
 			return -1
 		}
 		return this.grid[row][col]
+	}
+
+	trim() {
+		let empty = true
+		for (let j = 0; j < this.numColumns(); j++) {
+			if (!this.tileAt(0, j).isEmpty) {
+				empty = false
+				break
+			}
+		}
+		if (empty) {
+			// remove top row
+			this.grid.shift()
+		}
 	}
 
 	checkMatches() {

@@ -1,5 +1,3 @@
-import last from "ramda/src/last"
-import head from "ramda/src/head"
 import TileMatcher from "../lib/TileMatcher"
 
 const options = {
@@ -13,7 +11,7 @@ const options = {
 	numRows: 18,
 	numTiles: 3,
 	startingRows: 5,
-	destroySpeed: 4000,
+	destroySpeed: 2000,
 	swapSpeed: 200
 }
 
@@ -38,8 +36,6 @@ export default class GameScene extends Phaser.Scene {
 
 	create() {
 		this.frameWidth = 312
-		this.debugGridWidth = 270
-		this.debugGridHeight = 765
 		this.debugSprites = []
 		this.debugSpritePool = []
 
@@ -51,11 +47,10 @@ export default class GameScene extends Phaser.Scene {
 		)
 
 		if (options.debug) {
-			this.add.image(
-				this.frameWidth + this.debugGridWidth / 2,
-				this.game.config.height / 2,
-				"debug-grid"
-			)
+			this.debugGrid = this.add.image(0, 0, "debug-grid")
+			this.debugGrid
+				.setX(this.frameWidth + this.debugGrid.width / 2)
+				.setY(this.game.config.height / 2)
 		}
 
 		this.originX =
@@ -141,7 +136,6 @@ export default class GameScene extends Phaser.Scene {
 		}
 
 		// render debug grid
-		// for (let row = 0; row < this.gameMatrix.length; row++) {
 		for (let row = this.matcher.numRows() - 1; row >= 0; row--) {
 			for (let col = 0; col < this.matcher.numColumns(); col++) {
 				let sprite
@@ -149,7 +143,6 @@ export default class GameScene extends Phaser.Scene {
 				const y =
 					this.game.config.height -
 					56 -
-					// options.tileSize * row
 					options.tileSize * (this.matcher.numRows() - 1 - row)
 				let text = this.matcher.tileAt(row, col).tileColor
 				if (text === -1) {
@@ -257,16 +250,20 @@ export default class GameScene extends Phaser.Scene {
 				this.renderDebug()
 			}
 			this.activateLastRow()
-			if (this.matcher.checkMatches()) {
-				this.freezeTiles()
-				this.destroyMarkedTiles()
-					.then(() => this.makeTilesFall())
-					.then(() => {
-						this.unfreezeTiles()
-						// this.renderDebug()
-					})
-			}
+			this.handleMatches()
 			this.addInactiveGameRow()
+		}
+	}
+	handleMatches() {
+		if (this.matcher.checkMatches()) {
+			this.freezeTiles()
+			this.destroyMarkedTiles()
+				.then(() => this.makeTilesFall())
+				.then(() => {
+					this.unfreezeTiles()
+					this.matcher.trim()
+					this.renderDebug()
+				})
 		}
 	}
 	handleCursor() {

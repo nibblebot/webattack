@@ -215,19 +215,29 @@ export default class GameScene extends Phaser.Scene {
 		}
 	}
 	handleCursor() {
-		if (this.input.keyboard.checkDown(this.cursorKeys.up, 150)) {
+		if (this.cursor.y - this.cursor.height / 2 <= options.frameBorder) {
+			this.cursor.y += options.tileSize
+		}
+
+		const delay = 140
+		if (this.input.keyboard.checkDown(this.cursorKeys.up, delay)) {
 			this.moveCursorUp()
-		} else if (this.input.keyboard.checkDown(this.cursorKeys.down, 150)) {
+		} else if (this.input.keyboard.checkDown(this.cursorKeys.down, delay)) {
 			this.moveCursorDown()
-		} else if (this.input.keyboard.checkDown(this.cursorKeys.left, 150)) {
+		} else if (this.input.keyboard.checkDown(this.cursorKeys.left, delay)) {
 			this.moveCursorLeft()
-		} else if (this.input.keyboard.checkDown(this.cursorKeys.right, 150)) {
+		} else if (
+			this.input.keyboard.checkDown(this.cursorKeys.right, delay)
+		) {
 			this.moveCursorRight()
 		}
 	}
 
 	moveCursorUp() {
-		if (this.cursor.y - this.cursor.height > options.frameBorder) {
+		if (
+			this.cursor.y - this.cursor.height - options.frameBorder * 2 - 4 >
+			0
+		) {
 			this.cursor.y -= options.tileSize
 		}
 	}
@@ -240,10 +250,17 @@ export default class GameScene extends Phaser.Scene {
 		}
 	}
 	moveCursorLeft() {
-		this.cursor.x -= options.tileSize
+		if (this.cursor.x - options.tileSize > options.frameBorder) {
+			this.cursor.x -= options.tileSize
+		}
 	}
 	moveCursorRight() {
-		this.cursor.x += options.tileSize
+		if (
+			this.cursor.x + options.tileSize <
+			options.numColumns * options.tileSize
+		) {
+			this.cursor.x += options.tileSize
+		}
 	}
 
 	activateLastRow() {

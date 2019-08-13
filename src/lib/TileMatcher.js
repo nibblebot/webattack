@@ -112,6 +112,8 @@ export default class TileMatcher {
 
 				// skip empty tiles
 				if (colorToWatch < 0) {
+					startStreak = 0
+					colorStreak = 1
 					continue
 				}
 

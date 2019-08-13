@@ -13,7 +13,8 @@ const options = {
 	numRows: 18,
 	numTiles: 3,
 	startingRows: 5,
-	destroySpeed: 4000
+	destroySpeed: 4000,
+	swapSpeed: 200
 }
 
 export default class GameScene extends Phaser.Scene {
@@ -85,6 +86,7 @@ export default class GameScene extends Phaser.Scene {
 		}
 		this.input.keyboard.on("keydown-P", this.pause, this)
 		this.cursorKeys = this.input.keyboard.createCursorKeys()
+		this.input.keyboard.on("keydown-SPACE", this.swapTiles, this)
 	}
 
 	initializeGameMatrix() {
@@ -173,6 +175,59 @@ export default class GameScene extends Phaser.Scene {
 				this.debugSprites.push(sprite)
 			}
 		}
+	}
+
+	swapTiles() {
+		this.swappingGems = 2
+		let selectedRow
+		let selectedColumn
+		console.log("cursor y: ", this.cursor.y)
+		for (let i = 0; i < this.matcher.numRows(); i++) {
+			if (this.cursor.y === this.matcher.tileAt(i, 0).tileSprite.y) {
+				selectedRow = i
+				break
+			}
+		}
+		for (let j = 0; j < this.matcher.numColumns(); j++) {
+			const tile = this.matcher.tileAt(0, j)
+			if (
+				this.cursor.x - tile.tileSprite.width / 2 ===
+				this.matcher.tileAt(0, j).tileSprite.x
+			) {
+				selectedColumn = j
+			}
+		}
+
+		console.log(selectedRow, selectedColumn)
+		const tile1 = this.matcher.tileAt(selectedRow, selectedColumn)
+		const tile2 = this.matcher.tileAt(selectedRow, selectedColumn + 1)
+		const color1 = tile1.tileColor
+		const color2 = tile2.tileColor
+		const sprite1 = tile1.tileSprite
+		const sprite2 = tile2.tileSprite
+		tile1.tileColor = color2
+		tile1.tileSprite = sprite2
+		tile2.tileColor = color1
+		tile2.tileSprite = sprite1
+		this.tweenTile(tile1, -1)
+		this.tweenTile(tile2, 1)
+	}
+	tweenTile(tile1, direction) {
+		this.tweens.add({
+			targets: tile1.tileSprite,
+			x: tile1.tileSprite.x + options.tileSize * direction,
+			duration: options.swapSpeed,
+			callbackScope: this,
+			onComplete: function() {
+				this.swappingGems--
+				if (this.swappingGems == 0) {
+					console.log("done swapping")
+					// if (this.matchInBoard()) {
+					// 	this.handleMatches()
+					// }
+				}
+			}
+		})
 	}
 
 	// TODO: use tilePool to recycle sprites

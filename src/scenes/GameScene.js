@@ -88,16 +88,25 @@ export default class GameScene extends Phaser.Scene {
 	}
 
 	initializeGameMatrix() {
+		let lastTile
 		for (let i = 0; i < options.startingRows; i++) {
 			this.matcher.setRow(i, [])
 			for (let j = 0; j < this.matcher.numColumns(); j++) {
 				// create tile
 				// const rowOffset = this.gameMatrix.length - 1 - i
-				const tile = this.createTile(
-					this.originX + j * options.tileSize,
-					this.originY -
+				const x = this.originX + j * options.tileSize
+				let y
+				if (lastTile && lastTile.tileSprite) {
+					y = lastTile.tileSprite.y + options.tileSize
+				} else {
+					y =
+						this.originY -
 						(options.startingRows - i - 1) * options.tileSize
-				)
+				}
+
+				const tile = this.createTile(x, y)
+
+				lastTile = tile
 
 				// set random color to tile until no match is created
 				do {
@@ -355,10 +364,12 @@ export default class GameScene extends Phaser.Scene {
 		const row = []
 		for (let j = 0; j < this.matcher.numColumns(); j++) {
 			// create tile
-			const tileSprite = this.createTile(
-				this.originX + j * options.tileSize,
-				this.originY + options.tileSize - 1
-			)
+			const x = this.originX + j * options.tileSize
+			// const y = this.originY + options.tileSize - 1
+			const y =
+				this.matcher.getLastRow()[0].tileSprite.y + options.tileSize
+
+			const tileSprite = this.createTile(x, y)
 
 			// set random color to tile
 			const tileColor = Math.floor(Math.random() * options.numTiles)

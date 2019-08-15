@@ -1,7 +1,7 @@
 import TileMatcher from "../lib/TileMatcher"
 
 const options = {
-	debug: false,
+	debug: true,
 	tileSize: 48,
 	tileDefaultSpeed: -10,
 	tileFallSpeed: 60,
